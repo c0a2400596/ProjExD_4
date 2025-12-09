@@ -245,6 +245,34 @@ class Gravity(pg.sprite.Sprite):
         if self.life < 0:
             self.kill()
 
+class Shield(pg.sprite.Sprite):
+    """
+    防御壁に関するクラス
+    """
+    def __init__(self, bird: Bird, life: int):
+        super().__init__()
+        self.bird = bird
+        self.life = life
+        img_width, img_height = 20, bird.rect.height * 2
+        
+        self.image = pg.Surface((img_width, img_height), pg.SRCALPHA) # pg.SRCALPHAで透明なSurfaceを作成
+        pg.draw.rect(self.image, (0, 0, 255), (0, 0, img_width, img_height)) # 青い矩形を描画（(0, 0, 255)は不透明な青として描かれます）
+        self.rect = self.image.get_rect()
+        vx, vy = bird.dire
+        angle = math.degrees(math.atan2(-vy, vx))
+        
+        self.image = pg.transform.rotozoom(self.image, angle, 1.0) # 透明情報を持ったまま回転されます
+        
+        self.rect = self.image.get_rect()# 位置合わせ
+        self.rect.centerx = bird.rect.centerx + bird.rect.width * vx
+        self.rect.centery = bird.rect.centery + bird.rect.height * vy
+
+    def update(self):
+        self.life -= 1
+        if self.life < 0:
+            self.kill()
+        
+
 class Score:
     """
     打ち落とした爆弾，敵機の数をスコアとして表示するクラス
@@ -254,7 +282,7 @@ class Score:
     def __init__(self):
         self.font = pg.font.Font(None, 50)
         self.color = (0, 0, 255)
-        self.value = 0
+        self.value = 100000
         self.image = self.font.render(f"Score: {self.value}", 0, self.color)
         self.rect = self.image.get_rect()
         self.rect.center = 100, HEIGHT-50
@@ -276,6 +304,10 @@ def main():
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
     gravities = pg.sprite.Group()  # 追加：重力場グループ
+    shilds = pg.sprite.Group()
+
+
+
     tmr = 0
     clock = pg.time.Clock()
     while True:
@@ -290,6 +322,11 @@ def main():
                 if score.value > 200:  # スコアが200より大きいか確認
                     gravities.add(Gravity(400))  # 重力場生成
                     score.value -= 200           # スコア消費    
+            if event.type == pg.KEYDOWN and event.key == pg.K_s:
+                if score.value > 49 and len(shilds) == 0:
+                    shilds.add(Shield(bird, 400))
+                    score.value -= 50 #50スコア使う
+            
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
@@ -323,6 +360,9 @@ def main():
             pg.display.update()
             time.sleep(2)
             return
+        
+        for bomb in pg.sprite.groupcollide(bombs, shilds, True, False).keys():
+            exps.add(Explosion(bomb, 50))
 
         bird.update(key_lst, screen)
         beams.update()
@@ -336,6 +376,8 @@ def main():
         gravities.update()
         gravities.draw(screen)
         score.update(screen)
+        shilds.update()
+        shilds.draw(screen)
         pg.display.update()
         tmr += 1
         clock.tick(50)
